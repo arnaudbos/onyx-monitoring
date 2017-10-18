@@ -1,0 +1,139 @@
+ALERT PeerReceivedHeartbeatThresholdExceeded
+  IF max(since_received_heartbeat_75thPercentile) BY (job_id) KEEP_COMMON > 20000
+  LABELS {
+    severity = "warning"
+  }
+  ANNOTATIONS {
+    summary = "Peer hasn't received heartbeat for longer than 20 seconds",
+    description = "Job ID: {{ $labels.job_id }} \nHeartbeat: {{ $value }}"
+  }
+
+ALERT PeerTaskLifecycleLatencyHigh
+  IF sum(task_lifecycle_apply_fn_50thPercentile + task_lifecycle_read_batch_50thPercentile + task_lifecycle_assign_windows_50thPercentile + task_lifecycle_write_batch_50thPercentile) by (job_id, task, peer_id, kind) KEEP_COMMON > 1500
+  FOR 2m
+  LABELS {
+    severity = "warning"
+  }
+  ANNOTATIONS {
+    summary = "Peer's task lifecycle latency has spiked.",
+    description = "Task: {{ $labels.task }}, PeerID: {{ $labels.peer_id }},  Value: {{ $value }}."
+  }
+
+ALERT PeerHeartbeatThresholdExceeded
+  IF max(since_heartbeat_Value) BY (job_id) KEEP_COMMON > 10000
+  LABELS {
+    severity = "warning"
+  }
+  ANNOTATIONS {
+    summary = "Peer hasn't heartbeat for longer than 10 seconds",
+    description = "Job ID: {{ $labels.job_id }} \nHeartbeat: {{ $value }}"
+  }
+
+ALERT PeerMayBeStuckInLifecycleStage
+  IF max(current_lifecycle_duration_Value) BY (peer_id) KEEP_COMMON > 10000
+  FOR 5m
+  LABELS {
+    severity = "warning"
+  }
+  ANNOTATIONS {
+    summary = "Peer hasn't progressed from this lifecycle state for longer than 10 seconds.",
+    description = "Peer ID: {{ $labels.peer_id }} \nLifecycle state ms: {{ $value }}"
+  }
+
+ALERT OnyxJobRestartingOften
+  IF min(changes(replica_version_Value [5m])) BY (job_id) KEEP_COMMON > 1
+  LABELS {
+    severity = "warning"
+  }
+  ANNOTATIONS {
+    summary = "Job is moving to new replica-version too often, suggesting issues with the job.",
+    description = "Job ID: {{ $labels.job_id }}"
+  }
+
+ALERT CheckpointsStorageTimeLong
+  IF max(checkpoint_store_latency_50thPercentile) by (job_id) KEEP_COMMON > 3000
+  FOR 3m
+  LABELS {
+    severity = "warning"
+  }
+  ANNOTATIONS {
+    summary = "Job is taking too long to store checkpoints. Have a look at checkpoint_size_Value metric.",
+    description = "Job ID: {{ $labels.job_id }}"
+  }
+
+ALERT CheckpointsSizeLarge
+  IF max(checkpoint_size_Value) by (job_id) KEEP_COMMON > 100000000
+  LABELS {
+    severity = "warning"
+  }
+  ANNOTATIONS {
+    summary = "Job checkpoints have grown over 100MB. This may work ok, but you may want to look into how your services are performing.",
+    description = "Job ID: {{ $labels.job_id }} Value: {{ $value }}"
+  }
+
+ALERT PeerErrorRateTooHigh
+  IF AVG(peer_group_peer_errors_OneMinuteRate) KEEP_COMMON > 0.05
+  LABELS {
+    severity = "warning"
+  }
+  ANNOTATIONS {
+    summary = "High number of cluster peer errors are occurring."
+  }
+
+ALERT JobEpochProgressTooSlowMaybe
+  IF min(epoch_rate_OneMinuteRate) By (job_id) KEEP_COMMON < 0.06
+  FOR 5m
+  LABELS {
+    severity = "warning"
+  }
+  ANNOTATIONS {
+    summary = "Epoch / checkpointing progress is rather slow. This may or may not be an issue especially if a large amount of data is being processed / checkpointed by the job.",
+    description = "Job ID: {{ $labels.job_id }} \nJob ID: {{ $labels.job_id }} \nEpoch Rate: {{ $value }}"
+  }
+ALERT PeerGroupSchedulerLag
+  IF min(peer_group_scheduler_lag_Value) by (pod) KEEP_COMMON > 1000
+  LABELS {
+    severity = "warning"
+  }
+  ANNOTATIONS {
+    summary = "Peer group is lagging behind the cluster log. This may or may not be an issue, but if the lag is high (> 1000 ms) for a sustained period of time, this will indicate trouble.",
+    description = "Peer Pod: {{ $labels.pod }}"
+  }
+ALERT PeerGroupPeerStuckShuttingDown
+  IF min(peer_group_peers_max_shutdown_duration_ms_Value) by (pod) KEEP_COMMON > 40000
+  LABELS {
+    severity = "warning"
+  }
+  ANNOTATIONS {
+    summary = "Peer group seems to be encountering trouble shutting down peers. This is likely due to stuck threads that are having trouble timing out, though they may eventually resolve themselves without a restart.",
+    description = "Peer Pod: {{ $labels.pod }}"
+  }
+ALERT PeerGroupTaskLifecycleShutdown
+  IF min(peer_group_peers_shutting_down_Value) by (pod) KEEP_COMMON > 8
+  LABELS {
+    severity = "warning"
+  }
+  ANNOTATIONS {
+    summary = "Peer group is trying to shut down a large number of peers, indicating that a large number of tasks are stuck (potentially waiting for timeouts). This is indicative of a problem if not resolved.",
+    description = "Peer Pod: {{ $labels.pod }}"
+  }
+ALERT PeerGroupHeartbeating
+  IF max(peer_group_since_heartbeat_Value) by (pod) KEEP_COMMON > 300
+  FOR 5m
+  LABELS {
+    severity = "warning"
+  }
+  ANNOTATIONS {
+    summary = "Peer group has not heartbeated for a while. This may indicate that the peer group is stuck.",
+    description = "Peer Pod: {{ $labels.pod }}"
+  } 
+ALERT HighPeerAllocation
+  IF sum(peer_group_peer_allocated_proportion_Value) / count(peer_group_peer_allocated_proportion_Value) > .85
+  FOR 2m
+  LABELS {
+    severity = "warning"
+  }
+  ANNOTATIONS {
+    summary = "Onyx cluster over 85% allocated.",
+    description = "Onyx cluster is nearing job saturation. Allocate more resources."
+  }
